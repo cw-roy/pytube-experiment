@@ -25,13 +25,11 @@ def download_youtube_video(url, output_directory):
         yt = YouTube(url)
 
         # Get the highest resolution stream
-        video_stream = yt.streams.filter(file_extension="mp4").get_highest_resolution()
+        video_stream = yt.streams.filter(file_extension='mp4').get_highest_resolution()
 
         # Extract video title and sanitize for filename
-        video_title = re.sub(r"[^\w\s.-]", "", yt.title)
-        video_title = re.sub(
-            r"\s+", " ", video_title
-        )  # Replace consecutive spaces with a single space
+        video_title = re.sub(r'[^\w\s.-]', '', yt.title)
+        video_title = re.sub(r'\s+', ' ', video_title)  # Replace consecutive spaces with a single space
         video_filename = f"{video_title}.mp4"
         video_filepath = os.path.join(output_directory, video_filename)
 
@@ -50,7 +48,6 @@ def download_youtube_video(url, output_directory):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
 def strip_metadata(input_filepath, output_filepath):
     """
     Strip metadata from a video file using FFmpeg.
@@ -63,21 +60,8 @@ def strip_metadata(input_filepath, output_filepath):
         None
     """
     try:
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-i",
-                input_filepath,
-                "-map_metadata",
-                "-1",
-                "-c",
-                "copy",
-                output_filepath,
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
+        subprocess.run(["ffmpeg", "-i", input_filepath, "-map_metadata", "-1", "-c", "copy", output_filepath],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error stripping metadata: {e}")
     finally:
