@@ -1,6 +1,8 @@
 # Custom ignores
 download_log.txt
 scratchpad.py
+YouTube_downloads*
+url_list.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
