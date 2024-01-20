@@ -174,7 +174,11 @@ def process_input(input_str):
     elif input_str.lower().endswith(".txt"):
         # If input ends with ".txt", treat it as a path to a text file
         with open(input_str, 'r') as file:
-            return [line.strip() for line in file if line.strip()]
+            urls = [line.strip() for line in file if line.strip()]
+            if not urls:
+                print("Error: The .txt file does not contain valid URLs.")
+                sys.exit(1)
+            return urls
     else:
         # Otherwise, treat it as an unknown input
         print("Error: Unknown input format.")
@@ -358,13 +362,42 @@ if __name__ == "__main__":
 #     finally:
 #         os.remove(input_filepath)  # Remove the temporary file
 
+# def process_input(input_str):
+#     """
+#     Determine whether the input is a URL or a path to a .txt file.
+
+#     Args:
+#         input_str (str): User input.
+
+#     Returns:
+#         list: List of URLs to process.
+#     """
+#     if input_str.startswith("http"):
+#         # If input starts with "http", treat it as a single URL
+#         return [input_str]
+#     elif input_str.lower().endswith(".txt"):
+#         # If input ends with ".txt", treat it as a path to a text file
+#         with open(input_str, 'r') as file:
+#             return [line.strip() for line in file if line.strip()]
+#     else:
+#         # Otherwise, treat it as an unknown input
+#         print("Error: Unknown input format.")
+#         sys.exit(1)
+
 # if __name__ == "__main__":
-#     # Prompt for YouTube video URL
-#     print("Enter the YouTube video URL:")
-#     video_url = sys.stdin.readline().strip()
+#     # Prompt for YouTube video URL or path to a .txt file
+#     print("YouTube Video Downloader")
+#     print("Provide a single URL, or a .txt file containing a list of URLs. Example: `url_list.txt`")
+#     print("Enter the video URL or path to a .txt file:")
+#     user_input = sys.stdin.readline().strip()
+
+#     # Process the input to get a list of URLs
+#     urls_to_process = process_input(user_input)
 
 #     # Set the output directory in the same directory as the script
 #     output_directory = os.path.join(script_directory, 'YouTube_downloads')
 
-#     # Download the video
-#     download_youtube_video(video_url, output_directory)
+#     # Download the videos
+#     for url in urls_to_process:
+#         download_youtube_video(url, output_directory)
+
