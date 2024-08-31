@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# YouTube_download.py
-
 import os
 from pytube import YouTube
 import sys
@@ -41,7 +39,7 @@ def create_output_directory(output_directory):
     Create the output directory if it doesn't exist.
 
     Args:
-        output_directory (str): The directory to save the downloaded video.
+        output_directory (str): The directory to save the downloaded video or audio.
 
     Returns:
         None
@@ -52,23 +50,19 @@ def create_output_directory(output_directory):
         print(f"Error creating output directory: {e}")
         sys.exit(1)
 
-def download_youtube_video(url, output_directory):
+def download_youtube_video(url, output_directory, audio_only=False):
     """
-    Download a YouTube video given its URL.
+    Download a YouTube video or audio given its URL.
 
     Args:
         url (str): The URL of the YouTube video.
-        output_directory (str): The directory to save the downloaded video.
+        output_directory (str): The directory to save the downloaded video or audio.
+        audio_only (bool): If True, only download the audio.
 
     Returns:
         None
     """
     try:
-        # Check if FFmpeg is installed
-        if not check_ffmpeg():
-            print("Error: FFmpeg not installed.")
-            sys.exit(1)
-
         logging.info(f"Downloading started for URL: {url}")
 
         # Create output directory
@@ -77,77 +71,148 @@ def download_youtube_video(url, output_directory):
         # Create a YouTube object
         yt = YouTube(url)
 
-        # Get the highest resolution stream
-        video_stream = yt.streams.filter(file_extension="mp4").get_highest_resolution()
+        if audio_only:
+            # Get the best audio stream
+            audio_stream = yt.streams.filter(only_audio=True).order_by('abr').desc().first()
+            if audio_stream is None:
+                print("Error: No suitable audio stream found.")
+                sys.exit(1)
 
-        # Extract video title and sanitize for filename
-        video_title = re.sub(r"[^\w\s.-]", "", yt.title)
-        video_title = re.sub(r"\s+", " ", video_title)  # Replace consecutive spaces with a single space
-        video_filename = f"{video_title}.mp4"
-        video_filepath = os.path.join(output_directory, video_filename)
+            # Extract video title and sanitize for filename
+            audio_title = re.sub(r"[^\w\s.-]", "", yt.title)
+            audio_title = re.sub(r"\s+", " ", audio_title)  # Replace consecutive spaces with a single space
+            audio_filename = f"{audio_title}.mp3"
+            audio_filepath = os.path.join(output_directory, audio_filename)
 
-        # Check if the file already exists
-        if os.path.exists(video_filepath):
-            # Append an incremental identifier to the filename
-            increment = 1
-            while os.path.exists(os.path.join(output_directory, f"{video_title}_{increment}.mp4")):
-                increment += 1
-            video_filename = f"{video_title}_{increment}.mp4"
+            # Check if the file already exists
+            if os.path.exists(audio_filepath):
+                # Append an incremental identifier to the filename
+                increment = 1
+                while os.path.exists(os.path.join(output_directory, f"{audio_title}_{increment}.mp3")):
+                    increment += 1
+                audio_filename = f"{audio_title}_{increment}.mp3"
+                audio_filepath = os.path.join(output_directory, audio_filename)
+                logging.info(f"Filename already exists. Appending identifier: {audio_filename}")
+
+            # Download the audio to a temporary file
+            temp_audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+
+            logging.info(f"Downloading audio: {audio_title} (URL: {url})")
+            audio_stream.download(filename=temp_audio_file.name)
+
+            # Convert audio to MP3
+            convert_audio_to_mp3(temp_audio_file.name, audio_filepath)
+
+            logging.info(f"Audio downloaded successfully to {audio_filepath}")
+
+            # Print success completion message to the console
+            print(f"Audio downloaded successfully to {audio_filepath}")
+
+        else:
+            # Get the highest resolution video stream and the best audio stream
+            video_stream = yt.streams.filter(adaptive=True, file_extension="mp4").order_by('resolution').desc().first()
+            audio_stream = yt.streams.filter(only_audio=True, file_extension="mp4").first()
+
+            if video_stream is None or audio_stream is None:
+                print("Error: No suitable video or audio stream found.")
+                sys.exit(1)
+
+            # Extract video title and sanitize for filename
+            video_title = re.sub(r"[^\w\s.-]", "", yt.title)
+            video_title = re.sub(r"\s+", " ", video_title)  # Replace consecutive spaces with a single space
+            video_filename = f"{video_title}.mp4"
             video_filepath = os.path.join(output_directory, video_filename)
-            logging.info(f"Filename already exists. Appending identifier: {video_filename}")
 
-        # Download the video to a temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        temp_filepath = temp_file.name
+            # Check if the file already exists
+            if os.path.exists(video_filepath):
+                # Append an incremental identifier to the filename
+                increment = 1
+                while os.path.exists(os.path.join(output_directory, f"{video_title}_{increment}.mp4")):
+                    increment += 1
+                video_filename = f"{video_title}_{increment}.mp4"
+                video_filepath = os.path.join(output_directory, video_filename)
+                logging.info(f"Filename already exists. Appending identifier: {video_filename}")
 
-        logging.info(f"Downloading: {video_title} (URL: {url})")
+            # Download the video and audio to temporary files
+            temp_video_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+            temp_audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
 
-        # Start download timer
-        download_start_time = datetime.now()
+            logging.info(f"Downloading video: {video_title} (URL: {url})")
+            video_stream.download(filename=temp_video_file.name)
+            audio_stream.download(filename=temp_audio_file.name)
 
-        video_stream.download(output_directory, filename=temp_filepath)
-        temp_file.close()
+            # Merge video and audio using FFmpeg
+            merge_video_audio(temp_video_file.name, temp_audio_file.name, video_filepath)
 
-        # End download timer
-        download_end_time = datetime.now()
-        download_duration = download_end_time - download_start_time
-        logging.info(f"Download completed in {download_duration}")
+            logging.info(f"Video downloaded successfully to {video_filepath}")
 
-        # Strip metadata using FFmpeg
-        strip_metadata(temp_filepath, video_filepath)
-
-        logging.info(f"Video downloaded successfully to {video_filepath}")
-
-        # Print success completion message to the console
-        print(f"Video downloaded successfully to {video_filepath}")
+            # Print success completion message to the console
+            print(f"Video downloaded successfully to {video_filepath}")
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
         print("Error: An unexpected error occurred. Please check the log for details.")
         sys.exit(1)
 
-def strip_metadata(input_filepath, output_filepath):
+def merge_video_audio(video_filepath, audio_filepath, output_filepath):
     """
-    Strip metadata from a video file using FFmpeg.
+    Merge video and audio files into one using FFmpeg.
 
     Args:
-        input_filepath (str): Path to the input video file.
-        output_filepath (str): Path to the output video file.
+        video_filepath (str): Path to the video file.
+        audio_filepath (str): Path to the audio file.
+        output_filepath (str): Path to the output file.
 
     Returns:
         None
     """
     try:
-        # FFmpeg command to strip metadata
+        # FFmpeg command to merge video and audio
         cmd = [
             "ffmpeg",
             "-hide_banner",
-            "-i",
-            input_filepath,
-            "-map_metadata",
-            "-1",
-            "-c",
-            "copy",
+            "-i", video_filepath,
+            "-i", audio_filepath,
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-strict", "experimental",
+            output_filepath,
+        ]
+
+        # Run the command and capture output
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True)
+
+        # Log the output
+        logging.info(f"FFmpeg stdout output: {result.stdout}")
+        logging.info(f"FFmpeg stderr error output: {result.stderr}") 
+        logging.info(f"Video and audio merged successfully into {output_filepath}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error merging video and audio: {e}")
+    finally:
+        os.remove(video_filepath)  # Remove the temporary video file
+        os.remove(audio_filepath)  # Remove the temporary audio file
+
+def convert_audio_to_mp3(input_filepath, output_filepath):
+    """
+    Convert audio file to MP3 using FFmpeg.
+
+    Args:
+        input_filepath (str): Path to the input audio file.
+        output_filepath (str): Path to the output MP3 file.
+
+    Returns:
+        None
+    """
+    try:
+        # FFmpeg command to convert audio to MP3
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-i", input_filepath,
+            "-vn",  # no video
+            "-ab", "192k",  # audio bitrate
+            "-ar", "44100",  # audio sampling rate
+            "-y",  # overwrite output file if exists
             output_filepath,
         ]
 
@@ -158,11 +223,11 @@ def strip_metadata(input_filepath, output_filepath):
         logging.info(f"FFmpeg stdout output: {result.stdout}")
         logging.info(f"FFmpeg stderr error output: {result.stderr}")
 
-        logging.info(f"Metadata stripped successfully from {input_filepath}")
+        logging.info(f"Audio converted successfully to MP3: {output_filepath}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"Error stripping metadata: {e}")
+        logging.error(f"Error converting audio to MP3: {e}")
     finally:
-        os.remove(input_filepath)  # Remove the temporary file
+        os.remove(input_filepath)  # Remove the temporary audio file
 
 def process_input(input_str):
     """
@@ -191,6 +256,11 @@ def process_input(input_str):
         sys.exit(1)
 
 if __name__ == "__main__":
+    # Check if FFmpeg is installed
+    if not check_ffmpeg():
+        print("Error: FFmpeg not installed.")
+        sys.exit(1)
+
     # Prompt for YouTube video URL or path to a .txt file
     print("YouTube Video Downloader")
     print("Provide a single URL, or a .txt file containing a list of URLs. Example: `url_list.txt`")
@@ -200,11 +270,14 @@ if __name__ == "__main__":
     # Process the input to get a list of URLs
     urls_to_process = process_input(user_input)
 
+    # Ask the user if they want to download only the audio
+    print("Do you want to download only the audio? (y/n):")
+    audio_only_input = sys.stdin.readline().strip().lower()
+    audio_only = audio_only_input == 'y'
+
     # Set the output directory in the same directory as the script
     output_directory = os.path.join(script_directory, 'YouTube_downloads')
 
-    # Download the videos
+    # Download the videos or audio
     for url in urls_to_process:
-        download_youtube_video(url, output_directory)
-
-
+        download_youtube_video(url, output_directory, audio_only=audio_only)
