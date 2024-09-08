@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 import logging
-from datetime import datetime
+# from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
 # Get the directory of the script
@@ -175,7 +175,9 @@ def merge_video_audio(video_filepath, audio_filepath, output_filepath):
             "-i", audio_filepath,
             "-c:v", "copy",
             "-c:a", "aac",
+            "-map_metadata", "-1",
             "-strict", "experimental",
+            "-y",
             output_filepath,
         ]
 
@@ -212,6 +214,7 @@ def convert_audio_to_mp3(input_filepath, output_filepath):
             "-vn",  # no video
             "-ab", "192k",  # audio bitrate
             "-ar", "44100",  # audio sampling rate
+            "-map_metadata", "-1",
             "-y",  # overwrite output file if exists
             output_filepath,
         ]
@@ -270,10 +273,17 @@ if __name__ == "__main__":
     # Process the input to get a list of URLs
     urls_to_process = process_input(user_input)
 
-    # Ask the user if they want to download only the audio
-    print("Do you want to download only the audio? (y/n):")
-    audio_only_input = sys.stdin.readline().strip().lower()
-    audio_only = audio_only_input == 'y'
+    # Ask the user if they want to download video or audio only
+    print("Do you want to download the full (V)ideo or (A)udio only? (V/A):")
+    media_choice_input = sys.stdin.readline().strip().lower()
+    
+    if media_choice_input == 'a':
+        audio_only = True
+    elif media_choice_input == 'v':
+        audio_only = False
+    else:
+        print("Invalid choice. Please enter 'V' for video or 'A' for audio.")
+        sys.exit(1)
 
     # Set the output directory in the same directory as the script
     output_directory = os.path.join(script_directory, 'YouTube_downloads')
@@ -281,3 +291,4 @@ if __name__ == "__main__":
     # Download the videos or audio
     for url in urls_to_process:
         download_youtube_video(url, output_directory, audio_only=audio_only)
+        
